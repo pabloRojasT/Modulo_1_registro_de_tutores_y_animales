@@ -1,4 +1,5 @@
 import os
+from flask import Flask, jsonify, request, render_template
 import re
 from datetime import datetime, timezone
 import requests
@@ -285,6 +286,36 @@ def registrar_tutor():
         "fechaRegistro": fecha_registro,
     }), 201
 
+@app.route("/", methods=["GET"])
+def inicio():
+    """Sirve la interfaz web del Módulo 1."""
+    return render_template("index.html")
+
+
+@app.route("/api/registro/login", methods=["POST"])
+def iniciar_sesion():
+    """Puente hacia el Núcleo para iniciar sesión desde el navegador sin problemas de CORS."""
+    datos = request.get_json(silent=True)
+    if not datos or not datos.get("rut") or not datos.get("clave"):
+        return respuesta_error("DATOS_FALTANTES", "Debes ingresar RUT y clave", 400)
+
+    try:
+        resp = requests.post(
+            f"{NUCLEO_URL}/api/nucleo/sesiones",
+            json={"rut": datos["rut"].strip(), "clave": datos["clave"]},
+            timeout=30,
+        )
+    except requests.RequestException:
+        return respuesta_error(
+            "NUCLEO_NO_DISPONIBLE",
+            "No se pudo conectar con el servicio del núcleo",
+            503,
+        )
+
+    try:
+        return jsonify(resp.json()), resp.status_code
+    except ValueError:
+        return respuesta_error("NUCLEO_NO_DISPONIBLE", "Respuesta inválida del núcleo", 503)
 
 @app.errorhandler(404)
 def ruta_no_encontrada(_):
