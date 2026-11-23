@@ -373,6 +373,7 @@ def registrar_animal():
     HU-02: Crear la ficha de una mascota.
     - Exige especie, raza y color (y además sexo, edad aproximada y nombre, según la wiki).
     - El sistema genera un animalId único (A-000123).
+    - Asigna por defecto el estado "registrado".
     """
     # 1. Validar sesión contra el Núcleo
     usuario_actual, _, error = validar_token()
@@ -502,7 +503,7 @@ def registrar_animal():
                 404,
             )
 
-        # 6. Criterio 2: animalId único generado por el sistema
+        # 6. Criterio 2 y 3: animalId único generado por el sistema + estado "registrado"
         animal = {
             "animalId": generar_animal_id(),
             "especie": especie,
@@ -515,10 +516,12 @@ def registrar_animal():
             "sexo": sexo,
             "edadAproximada": edad,
             "microchip": None,
+            "estado": "registrado",
             "tutorRut": tutor_rut,
             "comunitario": comunitario,
             "responsableRut": responsable_rut,
             "fechaRegistro": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "historialTutores": [],
         }
         col_animales.insert_one(dict(animal))
 
@@ -529,6 +532,7 @@ def registrar_animal():
             500,
         )
 
+    animal.pop("historialTutores")
     if animal["razaObservada"] is None:
         animal.pop("razaObservada")
     return jsonify(animal), 201
