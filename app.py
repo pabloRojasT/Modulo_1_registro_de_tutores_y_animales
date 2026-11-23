@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import requests
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import PyMongoError
 
 # Carga las variables del archivo .env
@@ -23,6 +23,8 @@ db = client["m1_registro"]
 col_tutores = db["tutores"]
 col_prohibiciones = db["prohibiciones"]
 col_animales = db["animales"]
+col_razas = db["razas"]
+col_contadores = db["contadores"]
 
 
 def inicializar_lista_negra():
@@ -44,6 +46,23 @@ def inicializar_lista_negra():
 
 
 inicializar_lista_negra()
+
+
+def inicializar_indices():
+    """animalId único en la base de datos; microchip único si existe (RN-02, para HUs siguientes)."""
+    try:
+        col_animales.create_index("animalId", unique=True)
+        col_animales.create_index(
+            "microchip",
+            unique=True,
+            partialFilterExpression={"microchip": {"$type": "string"}},
+        )
+        col_razas.create_index([("especieId", 1), ("nombreNormalizado", 1)], unique=True)
+    except PyMongoError as e:
+        print(f"Advertencia: no se pudieron crear los índices en MongoDB: {e}")
+
+
+inicializar_indices()
 
 
 # --- FUNCIONES DE APOYO ---
@@ -125,6 +144,50 @@ def validar_token():
         "El núcleo devolvió una respuesta inesperada",
         503,
     )
+
+
+def generar_animal_id():
+    """
+    Genera un animalId único y correlativo con prefijo A- (ej: A-000123).
+    Usa un contador atómico en MongoDB, así dos peticiones simultáneas nunca obtienen el mismo número.
+    """
+    contador = col_contadores.find_one_and_update(
+        {"_id": "animalId"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return f"A-{contador['seq']:06d}"
+
+
+def obtener_raza_id(especie_id, raza):
+    """Devuelve el razaId (RZ-001, RZ-002...) de una raza; lo crea si es la primera vez que se registra."""
+    nombre_norm = raza.strip().lower()
+    existente = col_razas.find_one({"especieId": especie_id, "nombreNormalizado": nombre_norm})
+    if existente:
+        return existente["razaId"]
+
+    contador = col_contadores.find_one_and_update(
+        {"_id": "razaId"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    raza_id = f"RZ-{contador['seq']:03d}"
+    try:
+        col_razas.insert_one({
+            "razaId": raza_id,
+            "especieId": especie_id,
+            "nombre": raza.strip(),
+            "nombreNormalizado": nombre_norm,
+        })
+    except PyMongoError:
+        # Otra petición pudo crearla al mismo tiempo: reutilizamos la existente
+        existente = col_razas.find_one({"especieId": especie_id, "nombreNormalizado": nombre_norm})
+        if existente:
+            return existente["razaId"]
+        raise
+    return raza_id
 
 
 # Solo letras (con tildes y ñ), números, espacios y . , ' - ( ) en los textos libres.
@@ -309,6 +372,7 @@ def registrar_animal():
     """
     HU-02: Crear la ficha de una mascota.
     - Exige especie, raza y color (y además sexo, edad aproximada y nombre, según la wiki).
+    - El sistema genera un animalId único (A-000123).
     """
     # 1. Validar sesión contra el Núcleo
     usuario_actual, _, error = validar_token()
@@ -438,10 +502,12 @@ def registrar_animal():
                 404,
             )
 
-        # 6. Guardar la ficha con fecha en ISO 8601 UTC
+        # 6. Criterio 2: animalId único generado por el sistema
         animal = {
+            "animalId": generar_animal_id(),
             "especie": especie,
             "especieId": especie_id,
+            "razaId": obtener_raza_id(especie_id, raza_guardada) if raza_guardada else None,
             "raza": raza_guardada,
             "razaObservada": raza_observada,
             "color": color,
