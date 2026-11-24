@@ -41,7 +41,7 @@
     </div>
 
     <!-- Paso 2: Formulario HU-01 -->
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4">
       <div class="card-body">
         <h2 class="h5 mb-3">2. Registrar tutor (HU-01)</h2>
 
@@ -71,10 +71,71 @@
         <div id="tutor-resultado" class="alert mt-3 mb-0 d-none"></div>
       </div>
     </div>
+
+    <!-- Paso 3: Formulario HU-02 -->
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">3. Crear ficha de mascota (HU-02)</h2>
+
+        <form id="form-animal" class="row g-3" autocomplete="off">
+          <div class="col-md-6">
+            <label for="animal-nombre" class="form-label">Nombre</label>
+            <input type="text" id="animal-nombre" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="animal-especie" class="form-label">Especie</label>
+            <input type="text" id="animal-especie" class="form-control" placeholder="perro, gato..." autocomplete="off" autocapitalize="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="animal-raza" class="form-label">Raza</label>
+            <input type="text" id="animal-raza" class="form-control" placeholder="Labrador Retriever o Mestizo" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="animal-color" class="form-label">Color</label>
+            <input type="text" id="animal-color" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+          </div>
+          <div class="col-12 d-none" id="grupo-raza-observada">
+            <label for="animal-raza-observada" class="form-label">Raza observada (mestizo, texto libre)</label>
+            <input type="text" id="animal-raza-observada" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="col-md-6">
+            <label for="animal-sexo" class="form-label">Sexo</label>
+            <select id="animal-sexo" class="form-select" required>
+              <option value="">Selecciona...</option>
+              <option value="macho">Macho</option>
+              <option value="hembra">Hembra</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="animal-edad" class="form-label">Edad aproximada (años)</label>
+            <input type="number" id="animal-edad" class="form-control" min="0" max="40" step="1" required>
+          </div>
+
+          <!-- Solo para funcionario / admin / comunitario -->
+          <div class="col-12 d-none" id="grupo-comunitario">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="animal-comunitario">
+              <label class="form-check-label" for="animal-comunitario">Animal comunitario (sin tutor, con responsable)</label>
+            </div>
+          </div>
+          <div class="col-12 d-none" id="grupo-rut-destino">
+            <label for="animal-rut-destino" id="label-rut-destino" class="form-label">RUT del tutor</label>
+            <input type="text" id="animal-rut-destino" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+
+          <div class="col-12">
+            <button type="submit" id="btn-animal" class="btn btn-success w-100" disabled>Crear ficha</button>
+          </div>
+        </form>
+
+        <div id="animal-resultado" class="alert mt-3 mb-0 d-none"></div>
+      </div>
+    </div>
   </div>
 
   <script>
     let tokenActual = null;
+    let perfilActual = null;
 
     const formLogin = document.getElementById("form-login");
     const btnLogin = document.getElementById("btn-login");
@@ -87,11 +148,23 @@
     const tutorRutInput = document.getElementById("tutor-rut");
     const tutorResultado = document.getElementById("tutor-resultado");
 
+
+    const formAnimal = document.getElementById("form-animal");
+    const btnAnimal = document.getElementById("btn-animal");
+    const animalResultado = document.getElementById("animal-resultado");
+    const grupoRazaObs = document.getElementById("grupo-raza-observada");
+    const grupoComunitario = document.getElementById("grupo-comunitario");
+    const grupoRutDestino = document.getElementById("grupo-rut-destino");
+    const chkComunitario = document.getElementById("animal-comunitario");
+    const inputRaza = document.getElementById("animal-raza");
+
     formLogin.reset();
     formTutor.reset();
+    formAnimal.reset();
     window.addEventListener("pageshow", () => {
       formLogin.reset();
       formTutor.reset();
+      formAnimal.reset();
     });
 
     function mostrarAlerta(elemento, tipo, texto) {
@@ -125,6 +198,8 @@
 
         tokenActual = data.token;
         const u = data.usuario || {};
+        perfilActual = u.perfil || null;
+        configurarFormularioAnimal();
         mostrarAlerta(
           sesionInfo,
           "success",
@@ -134,6 +209,7 @@
         formLogin.classList.add("d-none");
         btnLogout.classList.remove("d-none");
         btnRegistrar.disabled = false;
+        btnAnimal.disabled = false;
       } catch (err) {
         mostrarAlerta(loginError, "danger", "Error de red al conectar con el servidor.");
       } finally {
@@ -144,8 +220,12 @@
 
     btnLogout.addEventListener("click", () => {
       tokenActual = null;
+      perfilActual = null;
       formLogin.reset();
       formTutor.reset();
+      formAnimal.reset();
+      animalResultado.classList.add("d-none");
+      btnAnimal.disabled = true;
       formLogin.classList.remove("d-none");
       btnLogout.classList.add("d-none");
       sesionInfo.classList.add("d-none");
@@ -198,6 +278,91 @@
       } finally {
         btnRegistrar.disabled = false;
         btnRegistrar.textContent = "Registrar tutor";
+      }
+    });
+
+    // ---------- HU-02: ficha de mascota ----------
+    function configurarFormularioAnimal() {
+      const esStaff = perfilActual === "funcionario" || perfilActual === "admin";
+      grupoComunitario.classList.toggle("d-none", !esStaff);
+      grupoRutDestino.classList.toggle("d-none", !esStaff);
+      actualizarRutDestino();
+    }
+
+    function actualizarRutDestino() {
+      document.getElementById("label-rut-destino").textContent =
+        chkComunitario.checked ? "RUT del responsable" : "RUT del tutor";
+    }
+    chkComunitario.addEventListener("change", actualizarRutDestino);
+
+    inputRaza.addEventListener("input", () => {
+      const esMestizo = ["mestizo", "mestiza"].includes(inputRaza.value.trim().toLowerCase());
+      grupoRazaObs.classList.toggle("d-none", !esMestizo);
+    });
+
+    formAnimal.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!tokenActual) {
+        mostrarAlerta(animalResultado, "warning", "Primero debes iniciar sesión.");
+        return;
+      }
+
+      btnAnimal.disabled = true;
+      btnAnimal.textContent = "Creando ficha...";
+
+      const payload = {
+        nombre: document.getElementById("animal-nombre").value.trim(),
+        especie: document.getElementById("animal-especie").value.trim(),
+        raza: inputRaza.value.trim(),
+        color: document.getElementById("animal-color").value.trim(),
+        sexo: document.getElementById("animal-sexo").value,
+        edadAproximada: parseInt(document.getElementById("animal-edad").value, 10),
+      };
+      if (!grupoRazaObs.classList.contains("d-none")) {
+        payload.razaObservada = document.getElementById("animal-raza-observada").value.trim();
+      }
+      if (perfilActual === "funcionario" || perfilActual === "admin") {
+        const rutDestino = document.getElementById("animal-rut-destino").value.trim();
+        if (chkComunitario.checked) {
+          payload.comunitario = true;
+          payload.responsableRut = rutDestino;
+        } else {
+          payload.tutorRut = rutDestino;
+        }
+      }
+
+      try {
+        const resp = await fetch("/api/registro/animales", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${tokenActual}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          const msg = data.error
+            ? `[${resp.status}] ${data.error.codigo}: ${data.error.mensaje}`
+            : `Error ${resp.status}`;
+          mostrarAlerta(animalResultado, "danger", msg);
+          return;
+        }
+
+        mostrarAlerta(
+          animalResultado,
+          "success",
+          `Ficha creada: ${data.animalId} · ${data.nombre} (${data.especie}, ${data.raza || "mestizo"}) · Color: ${data.color} · Estado: ${data.estado} · Fecha UTC: ${data.fechaRegistro}`
+        );
+        formAnimal.reset();
+        grupoRazaObs.classList.add("d-none");
+        actualizarRutDestino();
+      } catch (err) {
+        mostrarAlerta(animalResultado, "danger", "No se pudo comunicar con la API.");
+      } finally {
+        btnAnimal.disabled = false;
+        btnAnimal.textContent = "Crear ficha";
       }
     });
   </script>
