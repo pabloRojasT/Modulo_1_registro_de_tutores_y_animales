@@ -230,6 +230,40 @@ def salud():
         "baseDatos": bd_estado,
     }), 200
 
+@app.route("/api/registro/animales/<string:animal_id>", methods=["GET"])
+def consultar_animal_por_id(animal_id):
+    """
+    HU-03: Consultar la API del Módulo 1 mediante un animalId para obtener los datos de la mascota.
+    - Responde código HTTP con JSON.
+    - Si el ID no existe, responde error 404.
+    - Tiempo de respuesta menor a 1,5 segundos (RNF-02).
+    """
+    inicio = time.perf_counter()
+    id_limpio = animal_id.strip()
+
+    if not id_limpio:
+        return respuesta_error("ID_INVALIDO", "Debes indicar un animalId válido", 400)
+
+    try:
+        animal = col_animales.find_one({"animalId": id_limpio}, {"_id": 0})
+    except PyMongoError:
+        return respuesta_error(
+            "ERROR_INTERNO",
+            "Error al consultar la mascota en la base de datos",
+            500,
+        )
+
+    if not animal:
+        return respuesta_error(
+            "ANIMAL_NO_ENCONTRADO",
+            f"No existe una mascota registrada con el animalId '{id_limpio}'",
+            404,
+        )
+
+    duracion_ms = round((time.perf_counter() - inicio) * 1000, 2)
+    resp = jsonify(animal)
+    resp.headers["X-Response-Time-Ms"] = str(duracion_ms)
+    return resp, 200
 
 @app.route("/api/registro/sesion", methods=["GET"])
 def verificar_sesion():
