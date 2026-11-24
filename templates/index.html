@@ -161,6 +161,19 @@
       </div>
     </div>
 
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">5. Registrar microchip (HU-04)</h2>
+        <form id="form-microchip" class="row g-3">
+          <div class="col-md-6"><label for="microchip-animal" class="form-label">ID del animal</label>
+            <input id="microchip-animal" class="form-control" required></div>
+          <div class="col-md-6"><label for="microchip-codigo" class="form-label">Código de 15 dígitos</label>
+            <input id="microchip-codigo" class="form-control" inputmode="numeric" pattern="[0-9]{15}" maxlength="15" required></div>
+          <div class="col-12"><button class="btn btn-success w-100" type="submit">Registrar microchip</button></div>
+        </form>
+        <div id="microchip-resultado" class="alert mt-3 mb-0 d-none" role="status"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -456,6 +469,33 @@
       } finally {
         btnConsultarAnimal.disabled = false;
         btnConsultarAnimal.textContent = "Consultar ID";
+      }
+    });
+
+    document.getElementById("form-microchip").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const resultado = document.getElementById("microchip-resultado");
+      if (!tokenActual) {
+        mostrarAlerta(resultado, "danger", "Debes iniciar sesión.");
+        return;
+      }
+      const id = document.getElementById("microchip-animal").value.trim();
+      const codigo = document.getElementById("microchip-codigo").value;
+      const boton = e.currentTarget.querySelector("button");
+      boton.disabled = true;
+      try {
+        const respuesta = await fetch(`/api/registro/animales/${encodeURIComponent(id)}/microchip`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${tokenActual}` },
+          body: JSON.stringify({ microchip: codigo })
+        });
+        const datos = await respuesta.json();
+        mostrarAlerta(resultado, respuesta.ok ? "success" : "danger",
+          respuesta.ok ? "Microchip registrado. Estado: con microchip." : (datos.error?.mensaje || "No se pudo registrar."));
+      } catch (_) {
+        mostrarAlerta(resultado, "danger", "No se pudo comunicar con la API.");
+      } finally {
+        boton.disabled = false;
       }
     });
 
