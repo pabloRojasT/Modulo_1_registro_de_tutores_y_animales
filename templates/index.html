@@ -131,6 +131,36 @@
         <div id="animal-resultado" class="alert mt-3 mb-0 d-none"></div>
       </div>
     </div>
+
+    <!-- Paso 4: Consulta por animalId (HU-03) -->
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">4. Consultar mascota por ID (HU-03)</h2>
+
+        <form id="form-consulta-animal" class="row g-2" autocomplete="off">
+          <div class="col-sm-8">
+            <label for="consulta-animal-id" class="form-label visually-hidden">ID del animal</label>
+            <input type="text" id="consulta-animal-id" class="form-control"
+              placeholder="Ej: A-000123" autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-sm-4">
+            <button type="submit" id="btn-consultar-animal" class="btn btn-dark w-100">
+              Consultar ID
+            </button>
+          </div>
+        </form>
+
+        <div id="consulta-meta" class="alert alert-secondary mt-3 mb-2 py-2 d-none">
+          <strong>HTTP:</strong> <span id="consulta-http-code">-</span> &nbsp;|&nbsp;
+          <strong>Tiempo:</strong> <span id="consulta-tiempo">-</span>
+        </div>
+
+        <div id="consulta-ficha" class="border rounded bg-white p-3 mb-2 d-none"></div>
+
+        <pre id="consulta-json" class="bg-dark text-light p-3 rounded mb-0 d-none" style="font-size: 0.85rem; overflow-x: auto;"></pre>
+      </div>
+    </div>
+
   </div>
 
   <script>
