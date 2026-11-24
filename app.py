@@ -526,6 +526,8 @@ def registrar_animal():
         col_animales.insert_one(dict(animal))
 
     except PyMongoError:
+        import traceback
+        traceback.print_exc()
         return respuesta_error(
             "ERROR_INTERNO",
             "No se pudo completar el registro en la base de datos",
