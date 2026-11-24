@@ -7,7 +7,7 @@ from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import PyMongoError
-
+import time
 # Carga las variables del archivo .env
 load_dotenv()
 
@@ -22,6 +22,14 @@ db = client["m1_registro"]
 
 col_tutores = db["tutores"]
 col_prohibiciones = db["prohibiciones"]
+
+col_animales = db["animales"]
+
+try:
+    col_animales.create_index("animalId", unique=True)
+except PyMongoError as e:
+    print(f"Advertencia: no se pudo crear índice en animales.animalId: {e}")
+    
 col_animales = db["animales"]
 col_razas = db["razas"]
 col_contadores = db["contadores"]
