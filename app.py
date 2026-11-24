@@ -6,7 +6,7 @@ import requests
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, DuplicateKeyError
 import time
 # Carga las variables del archivo .env
 load_dotenv()
@@ -264,6 +264,40 @@ def consultar_animal_por_id(animal_id):
     resp = jsonify(animal)
     resp.headers["X-Response-Time-Ms"] = str(duracion_ms)
     return resp, 200
+
+@app.route("/api/registro/animales/<string:animal_id>/microchip", methods=["PUT"])
+def registrar_microchip(animal_id):
+    """HU-04: registrar un microchip único y actualizar el estado."""
+    usuario, _, error = validar_token()
+    if error:
+        return error
+    if usuario.get("perfil") not in ("veterinario", "funcionario", "admin"):
+        return respuesta_error("PERFIL_NO_AUTORIZADO", "Tu perfil no puede registrar microchips", 403)
+
+    datos = request.get_json(silent=True)
+    codigo = datos.get("microchip") if isinstance(datos, dict) else None
+    if not isinstance(codigo, str) or not re.fullmatch(r"[0-9]{15}", codigo):
+        return respuesta_error("MICROCHIP_INVALIDO", "El microchip debe tener exactamente 15 dígitos", 400)
+
+    try:
+        # No escribir si la base no puede garantizar la unicidad.
+        col_animales.create_index("microchip", unique=True,
+                                   partialFilterExpression={"microchip": {"$type": "string"}})
+        animal = col_animales.find_one_and_update(
+            {"animalId": animal_id, "estado": "registrado"},
+            {"$set": {"microchip": codigo, "estado": "con_microchip"}},
+            projection={"_id": 0}, return_document=ReturnDocument.AFTER,
+        )
+        if animal is None:
+            if col_animales.find_one({"animalId": animal_id}) is None:
+                return respuesta_error("ANIMAL_NO_ENCONTRADO", "No existe el animal indicado", 404)
+            return respuesta_error("ESTADO_INVALIDO", "No se puede registrar el microchip en el estado actual", 409)
+    except DuplicateKeyError:
+        return respuesta_error("MICROCHIP_DUPLICADO", "El microchip ya está registrado", 409)
+    except PyMongoError:
+        return respuesta_error("ERROR_INTERNO", "No se pudo registrar el microchip", 500)
+    return jsonify(animal), 200
+
 
 @app.route("/api/registro/sesion", methods=["GET"])
 def verificar_sesion():
