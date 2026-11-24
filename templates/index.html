@@ -395,6 +395,70 @@
         btnAnimal.textContent = "Crear ficha";
       }
     });
+
+    const formConsultaAnimal = document.getElementById("form-consulta-animal");
+    const btnConsultarAnimal = document.getElementById("btn-consultar-animal");
+    const consultaMeta = document.getElementById("consulta-meta");
+    const consultaHttpCode = document.getElementById("consulta-http-code");
+    const consultaTiempo = document.getElementById("consulta-tiempo");
+    const consultaFicha = document.getElementById("consulta-ficha");
+    const consultaJson = document.getElementById("consulta-json");
+
+    formConsultaAnimal.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const animalId = document.getElementById("consulta-animal-id").value.trim();
+      if (!animalId) return;
+
+      btnConsultarAnimal.disabled = true;
+      btnConsultarAnimal.textContent = "Consultando...";
+      consultaFicha.classList.add("d-none");
+
+      const headers = { "Accept": "application/json" };
+      if (tokenActual) {
+        headers["Authorization"] = `Bearer ${tokenActual}`;
+      }
+
+      const t0 = performance.now();
+      try {
+        const resp = await fetch(`/api/registro/animales/${encodeURIComponent(animalId)}`, {
+          method: "GET",
+          headers,
+        });
+        const elapsedSec = ((performance.now() - t0) / 1000).toFixed(3);
+        const data = await resp.json();
+
+        consultaMeta.className = `alert alert-${resp.ok ? "success" : "danger"} mt-3 mb-2 py-2`;
+        consultaHttpCode.textContent = `${resp.status} ${resp.statusText || ""}`.trim();
+
+        const dentroLimite = parseFloat(elapsedSec) < 1.5;
+        consultaTiempo.textContent = `${elapsedSec} s (${dentroLimite ? "< 1,5 s OK" : ">= 1,5 s"})`;
+
+        consultaJson.classList.remove("d-none");
+        consultaJson.textContent = JSON.stringify(data, null, 2);
+
+        if (resp.ok) {
+          consultaFicha.classList.remove("d-none");
+          consultaFicha.innerHTML = `
+            <div><strong>animalId:</strong> ${data.animalId ?? "-"}</div>
+            <div><strong>Nombre:</strong> ${data.nombre ?? "-"}</div>
+            <div><strong>Especie / Raza:</strong> ${data.especie ?? "-"} / ${data.raza ?? "-"}</div>
+            <div><strong>Color:</strong> ${data.color ?? "-"}</div>
+            <div><strong>Estado:</strong> ${data.estado ?? "-"}</div>
+            <div><strong>Microchip:</strong> ${data.microchip ?? "No registrado"}</div>
+          `;
+        }
+      } catch (err) {
+        consultaMeta.className = "alert alert-danger mt-3 mb-2 py-2";
+        consultaHttpCode.textContent = "Error de red";
+        consultaTiempo.textContent = "-";
+        consultaJson.classList.remove("d-none");
+        consultaJson.textContent = JSON.stringify({ error: "No se pudo consultar la API" }, null, 2);
+      } finally {
+        btnConsultarAnimal.disabled = false;
+        btnConsultarAnimal.textContent = "Consultar ID";
+      }
+    });
+
   </script>
 </body>
 </html>
