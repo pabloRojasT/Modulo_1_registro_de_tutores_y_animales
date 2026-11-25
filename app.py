@@ -257,10 +257,10 @@ def consultar_animal_por_id(animal_id):
         )
 
     id_limpio = animal_id.strip()
-
     if not id_limpio:
         return respuesta_error("ID_INVALIDO", "Debes indicar un animalId válido", 400)
 
+    # 2. Buscar la ficha en MongoDB
     try:
         animal = col_animales.find_one({"animalId": id_limpio}, {"_id": 0})
     except PyMongoError:
@@ -276,6 +276,25 @@ def consultar_animal_por_id(animal_id):
             f"No existe una mascota registrada con el animalId '{id_limpio}'",
             404,
         )
+
+    # 3. Control de privacidad RN-05 (Ley 21.719): cada perfil ve solo lo que le corresponde
+    if perfil == "vecino":
+        tutor_rut = str(animal.get("tutorRut") or "").strip().upper()
+        if tutor_rut != rut_sesion:
+            return respuesta_error(
+                "ACCESO_DENEGADO_RN05",
+                "Como vecino, solo puedes consultar las mascotas registradas bajo tu propio RUT",
+                403,
+            )
+
+    elif perfil == "comunitario":
+        responsable_rut = str(animal.get("responsableRut") or "").strip().upper()
+        if not animal.get("comunitario") or responsable_rut != rut_sesion:
+            return respuesta_error(
+                "ACCESO_DENEGADO_RN05",
+                "Como responsable comunitario, solo puedes consultar los animales comunitarios a tu cargo",
+                403,
+            )
 
     duracion_ms = round((time.perf_counter() - inicio) * 1000, 2)
     resp = jsonify(animal)

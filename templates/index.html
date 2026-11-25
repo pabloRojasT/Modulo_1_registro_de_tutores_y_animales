@@ -144,7 +144,7 @@
               placeholder="Ej: A-000123" autocomplete="off" spellcheck="false" required>
           </div>
           <div class="col-sm-4">
-            <button type="submit" id="btn-consultar-animal" class="btn btn-dark w-100">
+            <button type="submit" id="btn-consultar-animal" class="btn btn-dark w-100" disabled>
               Consultar ID
             </button>
           </div>
@@ -252,6 +252,7 @@
         formLogin.classList.add("d-none");
         btnLogout.classList.remove("d-none");
         btnRegistrar.disabled = false;
+        btnConsultarAnimal.disabled = false;
         btnAnimal.disabled = false;
       } catch (err) {
         mostrarAlerta(loginError, "danger", "Error de red al conectar con el servidor.");
@@ -274,12 +275,27 @@
       sesionInfo.classList.add("d-none");
       tutorResultado.classList.add("d-none");
       btnRegistrar.disabled = true;
+      btnConsultarAnimal.disabled = true;
+      formConsultaAnimal.reset();
+      consultaMeta.classList.add("d-none");
+      consultaFicha.classList.add("d-none");
+      consultaJson.classList.add("d-none");
     });
 
     formTutor.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!tokenActual) {
-        mostrarAlerta(tutorResultado, "warning", "Primero debes iniciar sesión.");
+        consultaMeta.className = "alert alert-warning mt-3 mb-2 py-2";
+        consultaHttpCode.textContent = "401";
+        consultaTiempo.textContent = "-";
+        consultaFicha.classList.add("d-none");
+        consultaJson.classList.remove("d-none");
+        consultaJson.textContent = JSON.stringify({
+          error: {
+            codigo: "TOKEN_REQUERIDO",
+            mensaje: "Debes iniciar sesión para consultar mascotas (RN-05).",
+          }
+        }, null, 2);
         return;
       }
 
