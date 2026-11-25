@@ -176,6 +176,70 @@
     </div>
   </div>
 
+  <!-- Paso 6: Registrar defunción (HU-06) -->
+<div class="card shadow-sm mt-4 mb-4">
+  <div class="card-body">
+
+    <h2 class="h5 mb-3">
+      6. Registrar defunción de mascota (HU-06)
+    </h2>
+
+    <p class="text-muted">
+      Permite registrar la defunción de un animal.
+      Esta acción bloqueará futuras modificaciones de su ficha.
+    </p>
+
+    <form id="form-defuncion" class="row g-3">
+
+      <div class="col-md-6">
+        <label for="defuncion-animal-id" class="form-label">
+          ID del animal
+        </label>
+
+        <input
+          type="text"
+          id="defuncion-animal-id"
+          class="form-control"
+          placeholder="Ej: A-000123"
+          required
+        >
+      </div>
+
+      <div class="col-md-6">
+        <label for="defuncion-fecha" class="form-label">
+          Fecha de defunción
+        </label>
+
+        <input
+          type="date"
+          id="defuncion-fecha"
+          class="form-control"
+          required
+        >
+      </div>
+
+      <div class="col-12">
+        <button
+          type="submit"
+          id="btn-defuncion"
+          class="btn btn-danger w-100"
+        >
+          Registrar defunción
+        </button>
+      </div>
+
+    </form>
+
+    <div
+      id="defuncion-resultado"
+      class="alert mt-3 mb-0 d-none"
+      role="status"
+    ></div>
+
+  </div>
+</div>
+
+
   <script>
     let tokenActual = null;
     let perfilActual = null;
@@ -514,6 +578,127 @@
         boton.disabled = false;
       }
     });
+
+// ---------- HU-06: Registrar defunción ----------
+document.getElementById("form-defuncion").addEventListener("submit", async (e) => {
+
+    e.preventDefault();
+
+    const resultado = document.getElementById("defuncion-resultado");
+    const boton = document.getElementById("btn-defuncion");
+
+    // 1. Comprobar sesión
+    if (!tokenActual) {
+        mostrarAlerta(
+            resultado,
+            "danger",
+            "Debes iniciar sesión para registrar una defunción."
+        );
+        return;
+    }
+
+    // 2. Obtener perfil autorizado
+    const perfilesAutorizados = [
+        "veterinario",
+        "funcionario",
+        "jefatura",
+        "admin"
+    ];
+
+    if (!perfilesAutorizados.includes(
+        String(perfilActual || "").toLowerCase()
+    )) {
+        mostrarAlerta(
+            resultado,
+            "danger",
+            "Tu perfil no está autorizado para realizar esta acción."
+        );
+        return;
+    }
+
+    // 3. Obtener datos del formulario
+    const animalId = document.getElementById(
+        "defuncion-animal-id"
+    ).value.trim();
+
+    const fechaDefuncion = document.getElementById(
+        "defuncion-fecha"
+    ).value;
+
+    if (!animalId || !fechaDefuncion) {
+        mostrarAlerta(
+            resultado,
+            "warning",
+            "Debes ingresar el ID del animal y la fecha de defunción."
+        );
+        return;
+    }
+
+    // 4. Confirmar operación
+    const confirmar = confirm(
+        `¿Estás seguro de registrar la defunción del animal ${animalId}?\n\nEsta acción bloqueará futuras modificaciones de su ficha.`
+    );
+
+    if (!confirmar) return;
+
+    boton.disabled = true;
+    boton.textContent = "Registrando defunción...";
+
+    try {
+
+        // 5. Enviar petición PATCH al backend
+        const respuesta = await fetch(
+            `/api/registro/animales/${encodeURIComponent(animalId)}/defuncion`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${tokenActual}`
+                },
+                body: JSON.stringify({
+                    fechaDefuncion: fechaDefuncion
+                })
+            }
+        );
+
+        const datos = await respuesta.json();
+
+        // 6. Mostrar resultado
+        if (!respuesta.ok) {
+
+            const mensaje = datos.error
+                ? `[${respuesta.status}] ${datos.error.codigo}: ${datos.error.mensaje}`
+                : `Error ${respuesta.status}`;
+
+            mostrarAlerta(resultado, "danger", mensaje);
+            return;
+        }
+
+        mostrarAlerta(
+            resultado,
+            "success",
+            `¡Defunción registrada correctamente! Animal: ${datos.animalId} | Nombre: ${datos.nombre || "-"} | Estado: ${datos.estado} | Fecha de defunción: ${datos.fechaDefuncion}. La ficha ya no admite modificaciones.`
+        );
+
+        // Limpiar formulario
+        e.currentTarget.reset();
+
+    } catch (error) {
+
+        mostrarAlerta(
+            resultado,
+            "danger",
+            "No se pudo conectar con el servidor."
+        );
+
+    } finally {
+
+        boton.disabled = false;
+        boton.textContent = "Registrar defunción";
+
+    }
+
+});
 
   </script>
 </body>

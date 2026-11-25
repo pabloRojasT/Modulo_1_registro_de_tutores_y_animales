@@ -1,4 +1,5 @@
 import os
+import unicodedata
 from flask import Flask, jsonify, request, render_template
 import re
 from datetime import datetime, timezone
@@ -154,6 +155,48 @@ def validar_token():
     )
 
 
+def obtener_perfil_sesion(datos_sesion):
+    """Obtiene y normaliza el perfil devuelto por el Núcleo."""
+
+    if not isinstance(datos_sesion, dict):
+        return ""
+
+    # El usuario puede venir directamente o dentro de "usuario"
+    usuario = datos_sesion.get("usuario")
+
+    if not isinstance(usuario, dict):
+        usuario = datos_sesion
+
+    perfil = usuario.get("perfil") or usuario.get("rol") or ""
+
+    perfil = str(perfil).strip().lower()
+
+    # Quitar tildes
+    perfil = unicodedata.normalize("NFKD", perfil)
+    perfil = "".join(
+        caracter for caracter in perfil
+        if not unicodedata.combining(caracter)
+    )
+
+    # Quitar espacios, guiones y guiones bajos
+    perfil = re.sub(r"[\s_-]+", "", perfil)
+
+    equivalencias = {
+        "admin": "admin",
+        "administrador": "admin",
+        "administradora": "admin",
+        "administradordelsistema": "admin",
+        "jefatura": "jefatura",
+        "jefe": "jefatura",
+        "jefa": "jefatura",
+        "funcionario": "funcionario",
+        "veterinario": "veterinario"
+    }
+
+    return equivalencias.get(perfil, perfil)
+
+
+
 def generar_animal_id():
     """
     Genera un animalId único y correlativo con prefijo A- (ej: A-000123).
@@ -303,6 +346,7 @@ def consultar_animal_por_id(animal_id):
 
 @app.route("/api/registro/animales/<string:animal_id>/microchip", methods=["PUT"])
 def registrar_microchip(animal_id):
+
     """HU-04: registrar un microchip único y actualizar el estado."""
     usuario, _, error = validar_token()
     if error:
@@ -334,6 +378,123 @@ def registrar_microchip(animal_id):
         return respuesta_error("ERROR_INTERNO", "No se pudo registrar el microchip", 500)
     return jsonify(animal), 200
 
+# ---------- HU-06: Registrar defunción de un animal ----------
+@app.route("/api/registro/animales/<string:animal_id>/defuncion", methods=["PATCH"])
+def registrar_defuncion(animal_id):
+
+    # 1. Verificar sesión contra el Núcleo
+    usuario, _, error = validar_token()
+
+    if error:
+        return error
+
+    # 2. Verificar perfil autorizado (RNF-01)
+    perfil = str(usuario.get("perfil", "")).strip().lower()
+
+    perfiles_autorizados = {
+        "veterinario",
+        "funcionario",
+        "jefatura",
+        "admin"
+    }
+
+    if perfil not in perfiles_autorizados:
+        return respuesta_error(
+            "PERFIL_NO_AUTORIZADO",
+            "Tu perfil no tiene permisos para registrar la defunción de un animal",
+            403
+        )
+
+    # 3. Obtener y validar la fecha de defunción
+    datos = request.get_json(silent=True)
+
+    if not isinstance(datos, dict):
+        return respuesta_error(
+            "JSON_INVALIDO",
+            "Debes enviar la fecha de defunción",
+            400
+        )
+
+    fecha_defuncion = datos.get("fechaDefuncion")
+
+    if not isinstance(fecha_defuncion, str):
+        return respuesta_error(
+            "FECHA_INVALIDA",
+            "Debes ingresar una fecha de defunción válida",
+            400
+        )
+
+    try:
+        fecha = datetime.strptime(fecha_defuncion, "%Y-%m-%d")
+
+        if fecha.strftime("%Y-%m-%d") != fecha_defuncion:
+            raise ValueError
+
+        if fecha.date() > datetime.now(timezone.utc).date():
+            return respuesta_error(
+                "FECHA_FUTURA",
+                "La fecha de defunción no puede ser futura",
+                400
+            )
+
+    except ValueError:
+        return respuesta_error(
+            "FECHA_INVALIDA",
+            "La fecha debe tener el formato YYYY-MM-DD",
+            400
+        )
+
+    # 4. Buscar y actualizar el animal
+    try:
+        animal = col_animales.find_one_and_update(
+            {
+                "animalId": animal_id,
+                "estado": {"$ne": "fallecido"}
+            },
+            {
+                "$set": {
+                    "estado": "fallecido",
+                    "fechaDefuncion": fecha_defuncion
+                }
+            },
+            projection={"_id": 0},
+            return_document=ReturnDocument.AFTER
+        )
+
+        if animal is None:
+
+            existente = col_animales.find_one(
+                {"animalId": animal_id}
+            )
+
+            if existente is None:
+                return respuesta_error(
+                    "ANIMAL_NO_ENCONTRADO",
+                    "No existe el animal indicado",
+                    404
+                )
+
+            return respuesta_error(
+                "ANIMAL_YA_FALLECIDO",
+                "El animal ya se encuentra registrado como fallecido",
+                409
+            )
+
+    except PyMongoError:
+        return respuesta_error(
+            "ERROR_INTERNO",
+            "No se pudo actualizar el estado del animal",
+            500
+        )
+
+    # 5. Respuesta exitosa
+    return jsonify({
+        "mensaje": "Defunción registrada correctamente",
+        "animalId": animal["animalId"],
+        "nombre": animal.get("nombre"),
+        "estado": animal["estado"],
+        "fechaDefuncion": animal["fechaDefuncion"]
+    }), 200
 
 @app.route("/api/registro/sesion", methods=["GET"])
 def verificar_sesion():
