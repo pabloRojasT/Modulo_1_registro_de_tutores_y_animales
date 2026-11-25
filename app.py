@@ -233,12 +233,29 @@ def salud():
 @app.route("/api/registro/animales/<string:animal_id>", methods=["GET"])
 def consultar_animal_por_id(animal_id):
     """
-    HU-03: Consultar la API del Módulo 1 mediante un animalId para obtener los datos de la mascota.
-    - Responde código HTTP con JSON.
-    - Si el ID no existe, responde error 404.
-    - Tiempo de respuesta menor a 1,5 segundos (RNF-02).
+    HU-03 + RN-05: Consultar ficha por animalId exigiendo sesión activa
+    y aplicando control de privacidad según el perfil del usuario.
     """
     inicio = time.perf_counter()
+
+    # 1. Exigir sesión válida contra el Núcleo (401 si no hay token o expiró)
+    usuario_actual, _, error = validar_token()
+    if error:
+        return error
+
+    perfil = str((usuario_actual or {}).get("perfil", "")).strip().lower()
+    rut_sesion = str((usuario_actual or {}).get("rut", "")).strip().upper()
+
+    perfiles_municipales = {"veterinario", "funcionario", "jefatura", "admin"}
+    perfiles_ciudadanos = {"vecino", "comunitario"}
+
+    if perfil not in (perfiles_municipales | perfiles_ciudadanos):
+        return respuesta_error(
+            "PERFIL_NO_AUTORIZADO",
+            "Tu perfil no tiene permisos para consultar fichas de animales (RN-05)",
+            403,
+        )
+
     id_limpio = animal_id.strip()
 
     if not id_limpio:
