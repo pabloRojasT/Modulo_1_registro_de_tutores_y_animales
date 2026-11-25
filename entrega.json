@@ -2,7 +2,7 @@
   "seccion": "TI3043",
   "modulo": 1,
   "grupo": "Grupo 1",
-  "prototipo": "PENDIENTE",
+  "prototipo": "https://modulo-1-registro-de-tutores-y-animales.onrender.com",
   "repositorio": "https://github.com/pabloRojasT/Modulo_1_registro_de_tutores_y_animales",
   "taiga": "https://tree.taiga.io/project/pablo_rojas-ti3043-iei-n4-m1",
   "integrantes": [
@@ -55,7 +55,7 @@
       "responsable": "yamir-rojo",
       "verificacion": {
         "metodo": "PUT",
-        "ruta": "/api/registro/animales/PENDIENTE/microchip",
+        "ruta": "/api/registro/animales/A-000002/microchip",
         "perfil": "veterinario",
         "cuerpo": { "microchip": "985112003456789" },
         "esperado": 200
@@ -79,7 +79,7 @@
       "responsable": "MatiasCortesXD",
       "verificacion": {
         "metodo": "PATCH",
-        "ruta": "/api/registro/animales/PENDIENTE/defuncion",
+        "ruta": "/api/registro/animales/A-000003/defuncion",
         "perfil": "veterinario",
         "cuerpo": { "fechaDefuncion": "2026-11-20", "tipoRespaldo": "certificado_veterinario", "respaldo": "CERT-001" },
         "esperado": 200
