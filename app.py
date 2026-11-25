@@ -823,7 +823,9 @@ def inicio():
 def iniciar_sesion():
     """Puente hacia el Núcleo para iniciar sesión desde el navegador sin problemas de CORS."""
     datos = request.get_json(silent=True)
-    if not datos or not datos.get("rut") or not datos.get("clave"):
+    if (not isinstance(datos, dict)
+        or not isinstance(datos.get("rut"), str) or not datos["rut"].strip()
+        or not isinstance(datos.get("clave"), str) or not datos["clave"]):
         return respuesta_error("DATOS_FALTANTES", "Debes ingresar RUT y clave", 400)
 
     try:
