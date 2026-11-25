@@ -812,6 +812,150 @@ def registrar_animal():
         animal.pop("razaObservada")
     return jsonify(animal), 201
 
+@app.route("/api/registro/animales/comunitarios", methods=["POST"])
+def registrar_animal_comunitario():
+    """
+    HU-05: Un funcionario inscribe un animal bajo la categoría "comunitario".
+    Criterio 1: el token debe corresponder al perfil "funcionario".
+    Criterio 2: exige el RUT de un responsable adulto, registrado como tutor (HU-01).
+    """
+    # 1. Validar sesión contra el Núcleo
+    usuario_actual, _, error = validar_token()
+    if error:
+        return error
+
+    # 2. Criterio 1: solo el perfil funcionario
+    perfil = str(usuario_actual.get("perfil", "")).strip().lower()
+    if perfil != "funcionario":
+        return respuesta_error(
+            "PERFIL_NO_AUTORIZADO",
+            "Solo un funcionario puede inscribir animales comunitarios",
+            403,
+        )
+
+    # 3. Leer el JSON
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return respuesta_error("JSON_INVALIDO", "El cuerpo de la petición debe ser un JSON válido", 400)
+
+    # 4. Criterio 2: responsable obligatorio, con RUT válido y de persona natural
+    responsable_rut = str(datos.get("responsableRut") or "").strip().upper()
+    if not responsable_rut:
+        return respuesta_error(
+            "DATOS_FALTANTES",
+            "Debes indicar responsableRut: el RUT de un responsable adulto",
+            400,
+        )
+    if not validar_formato_rut(responsable_rut):
+        return respuesta_error(
+            "RUT_INVALIDO",
+            "El RUT debe venir sin puntos, con guión y dígito verificador válido",
+            400,
+        )
+    if int(responsable_rut.split("-")[0]) >= 50000000:
+        return respuesta_error(
+            "RESPONSABLE_INVALIDO",
+            "El responsable debe ser una persona natural, no una empresa",
+            400,
+        )
+
+    # 5. Datos del animal (mismos campos que la ficha del contrato)
+    if datos.get("microchip") not in (None, ""):
+        return respuesta_error(
+            "MICROCHIP_NO_PERMITIDO",
+            "El microchip no se informa al crear la ficha; se registra después",
+            400,
+        )
+    nombre = texto_obligatorio(datos, "nombre", 80)
+    especie = texto_obligatorio(datos, "especie", 40)
+    raza = texto_obligatorio(datos, "raza", 80)
+    color = texto_obligatorio(datos, "color", 60)
+    faltantes = [
+        campo for campo, valor in (
+            ("nombre", nombre), ("especie", especie), ("raza", raza), ("color", color),
+        ) if not valor
+    ]
+    if faltantes:
+        return respuesta_error(
+            "DATOS_FALTANTES",
+            f"Faltan campos obligatorios o son inválidos: {', '.join(faltantes)}",
+            400,
+        )
+
+    sexo = str(datos.get("sexo", "")).strip().lower()
+    if sexo not in ("macho", "hembra"):
+        return respuesta_error("SEXO_INVALIDO", 'El sexo debe ser "macho" o "hembra"', 400)
+
+    edad = datos.get("edadAproximada")
+    if isinstance(edad, bool) or not isinstance(edad, int) or edad < 0 or edad > 40:
+        return respuesta_error(
+            "EDAD_INVALIDA",
+            "La edad aproximada debe ser un número entero de años entre 0 y 40",
+            400,
+        )
+
+    especie = especie.lower()
+    especie_id = "ESP-" + re.sub(r"[^A-Z0-9]+", "_", especie.upper()).strip("_")
+    if raza.lower() in ("mestizo", "mestiza"):
+        raza_observada = texto_obligatorio(datos, "razaObservada", 120)
+        if not raza_observada:
+            return respuesta_error(
+                "DATOS_FALTANTES",
+                "Si el animal es mestizo debes indicar razaObservada (texto libre)",
+                400,
+            )
+        raza_guardada = None
+    else:
+        raza_observada = None
+        raza_guardada = raza
+
+    # 6. Reglas contra la base de datos: sin prohibición (RN-04) y responsable ya registrado (HU-01)
+    try:
+        if col_prohibiciones.find_one({"rut": responsable_rut}):
+            return respuesta_error(
+                "PROHIBICION_TENENCIA",
+                "El RUT registra prohibición de tenencia de animales (RN-04)",
+                409,
+            )
+        if not col_tutores.find_one({"rut": responsable_rut}):
+            return respuesta_error(
+                "TUTOR_NO_ENCONTRADO",
+                "El responsable debe estar registrado como tutor antes de inscribir el animal",
+                404,
+            )
+
+        animal = {
+            "animalId": generar_animal_id(),
+            "especie": especie,
+            "especieId": especie_id,
+            "razaId": obtener_raza_id(especie_id, raza_guardada) if raza_guardada else None,
+            "raza": raza_guardada,
+            "razaObservada": raza_observada,
+            "color": color,
+            "nombre": nombre,
+            "sexo": sexo,
+            "edadAproximada": edad,
+            "microchip": None,
+            "estado": "registrado",
+            "tutorRut": None,
+            "comunitario": True,
+            "responsableRut": responsable_rut,
+            "fechaRegistro": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "historialTutores": [],
+        }
+        col_animales.insert_one(dict(animal))
+    except PyMongoError:
+        return respuesta_error(
+            "ERROR_INTERNO",
+            "No se pudo completar el registro en la base de datos",
+            500,
+        )
+
+    animal.pop("historialTutores")
+    if animal["razaObservada"] is None:
+        animal.pop("razaObservada")
+    return jsonify(animal), 201
+
 
 @app.route("/", methods=["GET"])
 def inicio():
