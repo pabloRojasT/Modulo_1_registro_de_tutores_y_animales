@@ -634,6 +634,7 @@
 
       const razaVal = document.getElementById("comunitario-raza").value.trim();
       const payload = {
+        comunitario: true,
         responsableRut: document.getElementById("comunitario-responsable").value.trim(),
         nombre: document.getElementById("comunitario-nombre").value.trim(),
         especie: document.getElementById("comunitario-especie").value.trim(),
@@ -649,7 +650,7 @@
       }
 
       try {
-        const resp = await fetch("/api/registro/animales/comunitarios", {
+        const resp = await fetch("/api/registro/animales", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -675,7 +676,7 @@
           "success",
           `[${resp.status}] Animal comunitario inscrito: ${animal.animalId || data.animalId || "OK"} · ${animal.nombre || payload.nombre} (${animal.especie || payload.especie}, ${animal.raza || payload.raza}) · Responsable RUT: ${animal.responsableRut || payload.responsableRut} · Comunitario: true`
         );
-        e.currentTarget.reset();
+        document.getElementById("form-comunitario").reset();
       } catch (err) {
         mostrarAlerta(resultado, "danger", `Error de red: ${err.message}`);
       } finally {
@@ -683,7 +684,7 @@
         boton.textContent = "Inscribir animal comunitario";
       }
     });
-    
+
     // ---------- HU-06: Registrar defunción ----------
     document.getElementById("form-defuncion").addEventListener("submit", async (e) => {
       e.preventDefault();
