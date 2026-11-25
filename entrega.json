@@ -1,0 +1,89 @@
+{
+  "seccion": "TI3043",
+  "modulo": 1,
+  "grupo": "Grupo 1",
+  "prototipo": "PENDIENTE",
+  "repositorio": "https://github.com/pabloRojasT/Modulo_1_registro_de_tutores_y_animales",
+  "taiga": "https://tree.taiga.io/project/pablo_rojas-ti3043-iei-n4-m1",
+  "integrantes": [
+    { "nombre": "Pablo Rojas", "github": "pabloRojasT", "taiga": "Pablo Rojas", "rol": "SM" },
+    { "nombre": "David Andrade", "github": "DavidAndradeRodriguez", "taiga": "David Andrade", "rol": "Arquitecto" },
+    { "nombre": "Jhojan Mina", "github": "Jhojan1231231", "taiga": "Jhojan Mina", "rol": "Analista" },
+    { "nombre": "Yamir Rojo", "github": "yamir-rojo", "taiga": "Yamir Rojo", "rol": "Arquitecto" },
+    { "nombre": "Bastián Oyanadel", "github": "bastianjvr6", "taiga": "Bastián Oyanadel", "rol": "Analista" },
+    { "nombre": "Matías Cortés", "github": "MatiasCortesXD", "taiga": "Matías Cortés", "rol": "Calidad" }
+  ],
+  "historias": [
+    {
+      "id": "HU-01",
+      "titulo": "Registrar los datos del tutor",
+      "responsable": "pabloRojasT",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/registro/tutores",
+        "perfil": "funcionario",
+        "cuerpo": { "rut": "12222222-5", "comuna": "Antofagasta", "telefono": "+56 9 6222 2222" },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-02",
+      "titulo": "Crear la ficha de una mascota",
+      "responsable": "DavidAndradeRodriguez",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/registro/animales",
+        "perfil": "vecino",
+        "cuerpo": { "nombre": "Cholito", "especie": "perro", "raza": "Labrador Retriever", "color": "cafe", "sexo": "macho", "edadAproximada": 4 },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-03",
+      "titulo": "Consultar una mascota por animalId",
+      "responsable": "Jhojan1231231",
+      "verificacion": {
+        "metodo": "GET",
+        "ruta": "/api/registro/animales/A-000001",
+        "perfil": "funcionario",
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-04",
+      "titulo": "Registrar el microchip",
+      "responsable": "yamir-rojo",
+      "verificacion": {
+        "metodo": "PUT",
+        "ruta": "/api/registro/animales/PENDIENTE/microchip",
+        "perfil": "veterinario",
+        "cuerpo": { "microchip": "985112003456789" },
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-05",
+      "titulo": "Inscribir un animal comunitario",
+      "responsable": "bastianjvr6",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/registro/animales/comunitarios",
+        "perfil": "funcionario",
+        "cuerpo": { "responsableRut": "13333333-9", "nombre": "Negro", "especie": "perro", "raza": "mestizo", "razaObservada": "mediano negro", "color": "negro", "sexo": "macho", "edadAproximada": 3 },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-06",
+      "titulo": "Marcar un animal como fallecido",
+      "responsable": "MatiasCortesXD",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/registro/animales/PENDIENTE/defuncion",
+        "perfil": "veterinario",
+        "cuerpo": { "fechaDefuncion": "2026-11-20", "tipoRespaldo": "certificado_veterinario", "respaldo": "CERT-001" },
+        "esperado": 200
+      }
+    }
+  ]
+}

@@ -268,6 +268,20 @@
             >
           </div>
 
+          <div class="col-md-6">
+            <label for="defuncion-tipo" class="form-label">Tipo de respaldo</label>
+            <select id="defuncion-tipo" class="form-select" required>
+              <option value="">Selecciona...</option>
+              <option value="certificado_veterinario">Certificado veterinario (atención clínica)</option>
+              <option value="evidencia_fotografica">Evidencia fotográfica (accidente)</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label for="defuncion-respaldo" class="form-label">N.º de certificado o enlace de la foto</label>
+            <input type="text" id="defuncion-respaldo" class="form-control" minlength="3" maxlength="300" required>
+          </div>
+
           <div class="col-12">
             <button
               type="submit"
@@ -650,7 +664,7 @@
       }
 
       try {
-        const resp = await fetch("/api/registro/animales", {
+        const resp = await fetch("/api/registro/animales/comunitarios", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -688,6 +702,8 @@
     // ---------- HU-06: Registrar defunción ----------
     document.getElementById("form-defuncion").addEventListener("submit", async (e) => {
       e.preventDefault();
+      // Se guarda antes de cualquier await: después e.currentTarget es null
+      const formulario = e.currentTarget;
 
       const resultado = document.getElementById("defuncion-resultado");
       const boton = document.getElementById("btn-defuncion");
@@ -701,12 +717,7 @@
         return;
       }
 
-      const perfilesAutorizados = [
-        "veterinario",
-        "funcionario",
-        "jefatura",
-        "admin"
-      ];
+      const perfilesAutorizados = ["veterinario", "funcionario"];
 
       if (!perfilesAutorizados.includes(
         String(perfilActual || "").toLowerCase()
@@ -750,7 +761,9 @@
               "Authorization": `Bearer ${tokenActual}`
             },
             body: JSON.stringify({
-              fechaDefuncion: fechaDefuncion
+              fechaDefuncion: fechaDefuncion,
+              tipoRespaldo: document.getElementById("defuncion-tipo").value,
+              respaldo: document.getElementById("defuncion-respaldo").value.trim()
             })
           }
         );
@@ -772,7 +785,7 @@
           `¡Defunción registrada correctamente! Animal: ${datos.animalId} | Nombre: ${datos.nombre || "-"} | Estado: ${datos.estado} | Fecha de defunción: ${datos.fechaDefuncion}. La ficha ya no admite modificaciones.`
         );
 
-        e.currentTarget.reset();
+        formulario.reset();
       } catch (error) {
         mostrarAlerta(
           resultado,

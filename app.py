@@ -19,7 +19,8 @@ MONGO_URI = os.getenv("MONGO_URI")
 
 # --- CONEXIÓN A MONGODB ATLAS ---
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-db = client["m1_registro"]
+# MONGO_DB permite probar en una base aparte sin tocar los datos reales
+db = client[os.getenv("MONGO_DB", "m1_registro")]
 
 col_tutores = db["tutores"]
 col_prohibiciones = db["prohibiciones"]
@@ -32,7 +33,6 @@ except PyMongoError as e:
     print(f"Advertencia: no se pudo crear índice en animales.animalId: {e}")
     
 col_animales = db["animales"]
-col_razas = db["razas"]
 col_contadores = db["contadores"]
 
 
@@ -66,7 +66,6 @@ def inicializar_indices():
             unique=True,
             partialFilterExpression={"microchip": {"$type": "string"}},
         )
-        col_razas.create_index([("especieId", 1), ("nombreNormalizado", 1)], unique=True)
     except PyMongoError as e:
         print(f"Advertencia: no se pudieron crear los índices en MongoDB: {e}")
 
@@ -211,34 +210,91 @@ def generar_animal_id():
     return f"A-{contador['seq']:06d}"
 
 
-def obtener_raza_id(especie_id, raza):
-    """Devuelve el razaId (RZ-001, RZ-002...) de una raza; lo crea si es la primera vez que se registra."""
-    nombre_norm = raza.strip().lower()
-    existente = col_razas.find_one({"especieId": especie_id, "nombreNormalizado": nombre_norm})
-    if existente:
-        return existente["razaId"]
+def normalizar(texto):
+    """Minúsculas y sin tildes, para comparar nombres de especies y razas."""
+    texto = unicodedata.normalize("NFKD", texto.strip().lower())
+    return "".join(c for c in texto if not unicodedata.combining(c))
 
-    contador = col_contadores.find_one_and_update(
-        {"_id": "razaId"},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=ReturnDocument.AFTER,
-    )
-    raza_id = f"RZ-{contador['seq']:03d}"
+
+def leer_catalogo(tipo):
+    """Lee un catálogo público del núcleo (especies o razas)."""
+    resp = requests.get(f"{NUCLEO_URL}/api/nucleo/catalogos/{tipo}?limit=100", timeout=30)
+    resp.raise_for_status()
+    return resp.json()["datos"]
+
+
+def resolver_especie_raza(especie, raza):
+    """
+    Busca la especie y la raza en los catálogos del núcleo.
+    raza=None significa mestizo. Devuelve (datos, None) o (None, error).
+    """
     try:
-        col_razas.insert_one({
-            "razaId": raza_id,
-            "especieId": especie_id,
-            "nombre": raza.strip(),
-            "nombreNormalizado": nombre_norm,
-        })
-    except PyMongoError:
-        # Otra petición pudo crearla al mismo tiempo: reutilizamos la existente
-        existente = col_razas.find_one({"especieId": especie_id, "nombreNormalizado": nombre_norm})
-        if existente:
-            return existente["razaId"]
-        raise
-    return raza_id
+        encontrada = next(
+            (e for e in leer_catalogo("especies") if normalizar(e["nombre"]) == normalizar(especie)),
+            None,
+        )
+        if not encontrada:
+            return None, respuesta_error("ESPECIE_INVALIDA", "La especie no existe en el catálogo del núcleo", 400)
+
+        datos = {
+            "especie": encontrada["nombre"].lower(),
+            "especieId": encontrada["id"],
+            "raza": None,
+            "razaId": None,
+        }
+        if raza is None:
+            return datos, None
+
+        for r in leer_catalogo("razas"):
+            if r["especieId"] == encontrada["id"] and normalizar(r["nombre"]) == normalizar(raza):
+                datos["raza"], datos["razaId"] = r["nombre"], r["id"]
+                return datos, None
+    except (requests.RequestException, ValueError, KeyError):
+        return None, respuesta_error("NUCLEO_NO_DISPONIBLE", "No se pudo leer el catálogo del núcleo", 503)
+
+    return None, respuesta_error(
+        "RAZA_INVALIDA",
+        'La raza no existe en el catálogo para esa especie; si es mestizo, indica "mestizo"',
+        400,
+    )
+
+
+def consultar_usuario_nucleo(rut, auth_header):
+    """Devuelve (persona, None); (None, None) si no existe; (None, error) si el núcleo falla."""
+    try:
+        resp = requests.get(
+            f"{NUCLEO_URL}/api/nucleo/usuarios/{rut}",
+            headers={"Authorization": auth_header},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            return resp.json(), None
+        if resp.status_code == 404:
+            return None, None
+        if resp.status_code == 403:
+            return None, respuesta_error("PERFIL_NO_AUTORIZADO", "No tienes permiso para consultar este RUT", 403)
+    except (requests.RequestException, ValueError):
+        pass
+    return None, respuesta_error("NUCLEO_NO_DISPONIBLE", "No se pudo consultar la persona en el núcleo", 503)
+
+
+PERFILES_MUNICIPALES = ("veterinario", "funcionario", "jefatura", "admin")
+PERFILES_CIUDADANOS = ("vecino", "comunitario")
+ESTADOS = ("registrado", "con_microchip", "inscrito", "fallecido")
+# Campos internos del M1 que no se comparten (Ley 21.719: lo mínimo)
+CAMPOS_PRIVADOS = ("_id", "historialTutores", "tipoRespaldo", "respaldo")
+
+
+def animal_publico(animal):
+    return {k: v for k, v in animal.items() if k not in CAMPOS_PRIVADOS}
+
+
+def datos_sesion(usuario):
+    """(perfil, rut) normalizados de la sesión validada por el núcleo."""
+    return (
+        str(usuario.get("perfil", "")).strip().lower(),
+        str(usuario.get("rut", "")).strip().upper(),
+    )
 
 
 # Solo letras (con tildes y ñ), números, espacios y . , ' - ( ) en los textos libres.
@@ -320,27 +376,17 @@ def consultar_animal_por_id(animal_id):
             404,
         )
 
-    # 3. Control de privacidad RN-05 (Ley 21.719): cada perfil ve solo lo que le corresponde
-    if perfil == "vecino":
-        tutor_rut = str(animal.get("tutorRut") or "").strip().upper()
-        if tutor_rut != rut_sesion:
+    # 3. Control de privacidad RN-05 (Ley 21.719): vecino y comunitario solo ven los suyos
+    if perfil in perfiles_ciudadanos:
+        if rut_sesion not in (animal.get("tutorRut"), animal.get("responsableRut")):
             return respuesta_error(
-                "ACCESO_DENEGADO_RN05",
-                "Como vecino, solo puedes consultar las mascotas registradas bajo tu propio RUT",
-                403,
-            )
-
-    elif perfil == "comunitario":
-        responsable_rut = str(animal.get("responsableRut") or "").strip().upper()
-        if not animal.get("comunitario") or responsable_rut != rut_sesion:
-            return respuesta_error(
-                "ACCESO_DENEGADO_RN05",
-                "Como responsable comunitario, solo puedes consultar los animales comunitarios a tu cargo",
+                "PERFIL_NO_AUTORIZADO",
+                "Solo puedes consultar las mascotas a tu cargo",
                 403,
             )
 
     duracion_ms = round((time.perf_counter() - inicio) * 1000, 2)
-    resp = jsonify(animal)
+    resp = jsonify(animal_publico(animal))
     resp.headers["X-Response-Time-Ms"] = str(duracion_ms)
     return resp, 200
 
@@ -351,7 +397,7 @@ def registrar_microchip(animal_id):
     usuario, _, error = validar_token()
     if error:
         return error
-    if usuario.get("perfil") not in ("veterinario", "funcionario", "admin"):
+    if usuario.get("perfil") not in ("veterinario", "funcionario"):
         return respuesta_error("PERFIL_NO_AUTORIZADO", "Tu perfil no puede registrar microchips", 403)
 
     datos = request.get_json(silent=True)
@@ -376,7 +422,7 @@ def registrar_microchip(animal_id):
         return respuesta_error("MICROCHIP_DUPLICADO", "El microchip ya está registrado", 409)
     except PyMongoError:
         return respuesta_error("ERROR_INTERNO", "No se pudo registrar el microchip", 500)
-    return jsonify(animal), 200
+    return jsonify(animal_publico(animal)), 200
 
 # ---------- HU-06: Registrar defunción de un animal ----------
 @app.route("/api/registro/animales/<string:animal_id>/defuncion", methods=["PATCH"])
@@ -391,12 +437,7 @@ def registrar_defuncion(animal_id):
     # 2. Verificar perfil autorizado (RNF-01)
     perfil = str(usuario.get("perfil", "")).strip().lower()
 
-    perfiles_autorizados = {
-        "veterinario",
-        "funcionario",
-        "jefatura",
-        "admin"
-    }
+    perfiles_autorizados = {"veterinario", "funcionario"}
 
     if perfil not in perfiles_autorizados:
         return respuesta_error(
@@ -444,6 +485,23 @@ def registrar_defuncion(animal_id):
             400
         )
 
+    # Respaldo obligatorio: certificado veterinario (atención clínica) o foto (accidente)
+    tipo_respaldo = datos.get("tipoRespaldo")
+    if tipo_respaldo not in ("certificado_veterinario", "evidencia_fotografica"):
+        return respuesta_error(
+            "RESPALDO_INVALIDO",
+            "tipoRespaldo debe ser certificado_veterinario o evidencia_fotografica",
+            400
+        )
+
+    respaldo = datos.get("respaldo")
+    if not isinstance(respaldo, str) or not re.fullmatch(r"[^<>{}$]{3,300}", respaldo.strip()):
+        return respuesta_error(
+            "RESPALDO_INVALIDO",
+            "Debes indicar el número de certificado o el enlace de la foto en respaldo",
+            400
+        )
+
     # 4. Buscar y actualizar el animal
     try:
         animal = col_animales.find_one_and_update(
@@ -454,7 +512,9 @@ def registrar_defuncion(animal_id):
             {
                 "$set": {
                     "estado": "fallecido",
-                    "fechaDefuncion": fecha_defuncion
+                    "fechaDefuncion": fecha_defuncion,
+                    "tipoRespaldo": tipo_respaldo,
+                    "respaldo": respaldo.strip()
                 }
             },
             projection={"_id": 0},
@@ -523,7 +583,7 @@ def registrar_tutor():
         return respuesta_error("JSON_INVALIDO", "El cuerpo de la petición debe ser un JSON válido", 400)
 
     rut = str(datos.get("rut", "")).strip().upper()
-    comuna = str(datos.get("comuna", "")).strip()
+    comuna = texto_obligatorio(datos, "comuna", 60)
     telefono = str(datos.get("telefono", "")).strip()
 
     if not rut or not comuna or not telefono:
@@ -532,6 +592,9 @@ def registrar_tutor():
             "Los campos rut, comuna y telefono son obligatorios",
             400,
         )
+
+    if not re.fullmatch(r"\+?[0-9 ]{8,16}", telefono):
+        return respuesta_error("TELEFONO_INVALIDO", "El teléfono solo admite dígitos, espacios y un + inicial", 400)
 
     # 3. Criterio 1: Validar formato y dígito verificador del RUT
     if not validar_formato_rut(rut):
@@ -707,8 +770,6 @@ def registrar_animal():
         )
 
     # 4. Si es mestizo la raza queda nula y se agrega "razaObservada" (texto libre)
-    especie = especie.lower()
-    especie_id = "ESP-" + re.sub(r"[^A-Z0-9]+", "_", especie.upper()).strip("_")
 
     if raza.lower() in ("mestizo", "mestiza"):
         raza_observada = texto_obligatorio(datos, "razaObservada", 120)
@@ -722,6 +783,10 @@ def registrar_animal():
     else:
         raza_observada = None
         raza_guardada = raza
+
+    catalogo, error = resolver_especie_raza(especie, raza_guardada)
+    if error:
+        return error
 
     # 5. Tutor / responsable según el perfil
     comunitario = datos.get("comunitario", False)
@@ -779,10 +844,7 @@ def registrar_animal():
         # 6. Criterio 2 y 3: animalId único generado por el sistema + estado "registrado"
         animal = {
             "animalId": generar_animal_id(),
-            "especie": especie,
-            "especieId": especie_id,
-            "razaId": obtener_raza_id(especie_id, raza_guardada) if raza_guardada else None,
-            "raza": raza_guardada,
+            **catalogo,
             "razaObservada": raza_observada,
             "color": color,
             "nombre": nombre,
@@ -799,8 +861,7 @@ def registrar_animal():
         col_animales.insert_one(dict(animal))
 
     except PyMongoError:
-        import traceback
-        traceback.print_exc()
+        app.logger.exception("Error al registrar el animal")
         return respuesta_error(
             "ERROR_INTERNO",
             "No se pudo completar el registro en la base de datos",
@@ -894,8 +955,6 @@ def registrar_animal_comunitario():
             400,
         )
 
-    especie = especie.lower()
-    especie_id = "ESP-" + re.sub(r"[^A-Z0-9]+", "_", especie.upper()).strip("_")
     if raza.lower() in ("mestizo", "mestiza"):
         raza_observada = texto_obligatorio(datos, "razaObservada", 120)
         if not raza_observada:
@@ -908,6 +967,10 @@ def registrar_animal_comunitario():
     else:
         raza_observada = None
         raza_guardada = raza
+
+    catalogo, error = resolver_especie_raza(especie, raza_guardada)
+    if error:
+        return error
 
     # 6. Reglas contra la base de datos: sin prohibición (RN-04) y responsable ya registrado (HU-01)
     try:
@@ -926,10 +989,7 @@ def registrar_animal_comunitario():
 
         animal = {
             "animalId": generar_animal_id(),
-            "especie": especie,
-            "especieId": especie_id,
-            "razaId": obtener_raza_id(especie_id, raza_guardada) if raza_guardada else None,
-            "raza": raza_guardada,
+            **catalogo,
             "razaObservada": raza_observada,
             "color": color,
             "nombre": nombre,
@@ -955,6 +1015,184 @@ def registrar_animal_comunitario():
     if animal["razaObservada"] is None:
         animal.pop("razaObservada")
     return jsonify(animal), 201
+
+
+# ---------- Contrato M1: endpoints que consumen M2 a M5 ----------
+@app.route("/api/registro/animales", methods=["GET"])
+def listar_animales():
+    """Listado paginado. Vecino y comunitario solo ven los animales a su cargo."""
+    usuario, _, error = validar_token()
+    if error:
+        return error
+    perfil, rut_sesion = datos_sesion(usuario)
+    if perfil not in PERFILES_MUNICIPALES + PERFILES_CIUDADANOS:
+        return respuesta_error("PERFIL_NO_AUTORIZADO", "Tu perfil no puede consultar animales", 403)
+
+    filtro = {}
+    for campo in ("tutorRut", "responsableRut"):
+        valor = request.args.get(campo, "").strip().upper()
+        if valor:
+            if not validar_formato_rut(valor):
+                return respuesta_error("RUT_INVALIDO", f"{campo} no es un RUT válido", 400)
+            filtro[campo] = valor
+
+    estado = request.args.get("estado", "").strip()
+    if estado:
+        if estado not in ESTADOS:
+            return respuesta_error("ESTADO_INVALIDO", f"estado debe ser uno de: {', '.join(ESTADOS)}", 400)
+        filtro["estado"] = estado
+
+    especie = request.args.get("especie", "").strip()
+    if especie:
+        if especie.upper().startswith("ESP-"):
+            filtro["especieId"] = especie.upper()
+        else:
+            filtro["especie"] = especie.lower()
+
+    if perfil in PERFILES_CIUDADANOS:
+        filtro["$or"] = [{"tutorRut": rut_sesion}, {"responsableRut": rut_sesion}]
+
+    page = max(request.args.get("page", 1, type=int), 1)
+    limit = min(max(request.args.get("limit", 20, type=int), 1), 100)
+
+    try:
+        total = col_animales.count_documents(filtro)
+        cursor = col_animales.find(filtro, {"_id": 0}).sort("animalId", 1).skip((page - 1) * limit).limit(limit)
+        datos = [animal_publico(a) for a in cursor]
+    except PyMongoError:
+        return respuesta_error("ERROR_INTERNO", "No se pudo consultar la base de datos", 500)
+
+    return jsonify({
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "totalPaginas": (total + limit - 1) // limit,
+        "datos": datos,
+    }), 200
+
+
+@app.route("/api/registro/tutores/<string:rut>", methods=["GET"])
+def consultar_tutor(rut):
+    """Prohibición de tenencia (RN-04) y animales a cargo. Nombre y perfil vienen del núcleo."""
+    usuario, auth_header, error = validar_token()
+    if error:
+        return error
+    perfil, rut_sesion = datos_sesion(usuario)
+    rut = rut.strip().upper()
+    if not validar_formato_rut(rut):
+        return respuesta_error("RUT_INVALIDO", "El RUT no es válido", 400)
+    if perfil not in PERFILES_MUNICIPALES + PERFILES_CIUDADANOS or (
+        perfil in PERFILES_CIUDADANOS and rut != rut_sesion
+    ):
+        return respuesta_error("PERFIL_NO_AUTORIZADO", "Solo puedes consultar tus propios datos", 403)
+
+    persona, error = consultar_usuario_nucleo(rut, auth_header)
+    if error:
+        return error
+    if persona is None:
+        return respuesta_error("TUTOR_NO_ENCONTRADO", "No existe una persona con ese RUT", 404)
+
+    try:
+        prohibido = col_prohibiciones.find_one({"rut": rut}) is not None
+        propios = list(col_animales.find({"tutorRut": rut}, {"_id": 0, "animalId": 1}))
+        comunitarios = list(col_animales.find({"responsableRut": rut}, {"_id": 0, "animalId": 1}))
+    except PyMongoError:
+        return respuesta_error("ERROR_INTERNO", "No se pudo consultar la base de datos", 500)
+
+    # Comuna y teléfono no se comparten (Ley 21.719)
+    return jsonify({
+        "rut": rut,
+        "nombre": persona.get("nombre"),
+        "perfil": persona.get("perfil"),
+        "prohibicionTenencia": prohibido or persona.get("prohibicionTenencia") is True,
+        "animalesACargo": len(propios),
+        "animalesComunitarios": len(comunitarios),
+        "animalIds": sorted(a["animalId"] for a in propios + comunitarios),
+    }), 200
+
+
+@app.route("/api/registro/animales/<string:animal_id>/tutor", methods=["PATCH"])
+def cambiar_tutor(animal_id):
+    """Cambia o quita el tutor y guarda el anterior en historialTutores."""
+    usuario, auth_header, error = validar_token()
+    if error:
+        return error
+    if datos_sesion(usuario)[0] not in ("funcionario", "admin"):
+        return respuesta_error("PERFIL_NO_AUTORIZADO", "Solo funcionario o admin pueden cambiar el tutor", 403)
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict) or "tutorRut" not in datos:
+        return respuesta_error("RUT_INVALIDO", "Debes enviar tutorRut (un RUT o null)", 400)
+    nuevo = datos["tutorRut"]
+    if nuevo is not None:
+        if not isinstance(nuevo, str) or not validar_formato_rut(nuevo):
+            return respuesta_error("RUT_INVALIDO", "El RUT no es válido", 400)
+        nuevo = nuevo.strip().upper()
+
+    try:
+        animal = col_animales.find_one({"animalId": animal_id})
+        if animal is None:
+            return respuesta_error("ANIMAL_NO_ENCONTRADO", "No existe el animal indicado", 404)
+        if animal.get("estado") == "fallecido":
+            return respuesta_error("ANIMAL_FALLECIDO", "No se puede cambiar el tutor de un animal fallecido", 409)
+
+        if nuevo is not None:
+            persona, error = consultar_usuario_nucleo(nuevo, auth_header)
+            if error:
+                return error
+            if persona is None:
+                return respuesta_error("USUARIO_NO_ENCONTRADO", "No existe una persona con ese RUT", 404)
+            if persona.get("prohibicionTenencia") is True or col_prohibiciones.find_one({"rut": nuevo}):
+                return respuesta_error("PROHIBICION_TENENCIA", "El RUT registra prohibición de tenencia (RN-04)", 409)
+
+        cambios = {"tutorRut": nuevo}
+        if nuevo is not None:
+            # Al tener tutor deja de ser comunitario (RN-03)
+            cambios.update({"comunitario": False, "responsableRut": None})
+
+        actualizado = col_animales.find_one_and_update(
+            # El filtro evita pisar un cambio o una defunción simultáneos
+            {"animalId": animal_id, "estado": {"$ne": "fallecido"}, "tutorRut": animal.get("tutorRut")},
+            {
+                "$set": cambios,
+                "$push": {"historialTutores": {
+                    "tutorRut": animal.get("tutorRut"),
+                    "responsableRut": animal.get("responsableRut"),
+                    "hasta": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+    except PyMongoError:
+        return respuesta_error("ERROR_INTERNO", "No se pudo cambiar el tutor", 500)
+
+    if actualizado is None:
+        return respuesta_error("CONFLICTO", "El animal cambió mientras se procesaba; intenta de nuevo", 409)
+    return jsonify(animal_publico(actualizado)), 200
+
+
+@app.route("/api/registro/animales/<string:animal_id>/inscripcion", methods=["PATCH"])
+def inscribir_animal(animal_id):
+    """Transición con_microchip -> inscrito, marcada a mano por un funcionario."""
+    usuario, _, error = validar_token()
+    if error:
+        return error
+    if datos_sesion(usuario)[0] != "funcionario":
+        return respuesta_error("PERFIL_NO_AUTORIZADO", "Solo un funcionario puede inscribir", 403)
+
+    try:
+        animal = col_animales.find_one_and_update(
+            {"animalId": animal_id, "estado": "con_microchip"},
+            {"$set": {"estado": "inscrito"}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if animal is None:
+            if col_animales.find_one({"animalId": animal_id}) is None:
+                return respuesta_error("ANIMAL_NO_ENCONTRADO", "No existe el animal indicado", 404)
+            return respuesta_error("ESTADO_INVALIDO", "Solo se inscribe un animal con_microchip", 409)
+    except PyMongoError:
+        return respuesta_error("ERROR_INTERNO", "No se pudo inscribir el animal", 500)
+    return jsonify(animal_publico(animal)), 200
 
 
 @app.route("/", methods=["GET"])
@@ -993,6 +1231,16 @@ def iniciar_sesion():
 @app.errorhandler(404)
 def ruta_no_encontrada(_):
     return respuesta_error("RUTA_NO_ENCONTRADA", "La ruta solicitada no existe", 404)
+
+
+@app.errorhandler(405)
+def metodo_no_permitido(_):
+    return respuesta_error("METODO_NO_PERMITIDO", "Método no permitido para esta ruta", 405)
+
+
+@app.errorhandler(500)
+def error_interno(_):
+    return respuesta_error("ERROR_INTERNO", "Ocurrió un error interno", 500)
 
 
 if __name__ == "__main__":
