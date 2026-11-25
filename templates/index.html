@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Módulo 1 - Registro de Tutores</title>
+  <title>Módulo 1 - Registro de Tutores y Animales</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
   <div class="container py-5" style="max-width: 680px;">
     <h1 class="h3 mb-1">Módulo 1: Registro de Tutores y Animales</h1>
-    <p class="text-muted mb-4">HU-01 · Registro de tutor integrado con el Núcleo</p>
+    <p class="text-muted mb-4">Registro integrado con el Núcleo · HU-01 a HU-06</p>
 
     <!-- Paso 1: Inicio de sesión -->
     <div class="card shadow-sm mb-4">
@@ -161,6 +161,7 @@
       </div>
     </div>
 
+    <!-- Paso 5: Registrar microchip (HU-04) -->
     <div class="card shadow-sm mt-4">
       <div class="card-body">
         <h2 class="h5 mb-3">5. Registrar microchip (HU-04)</h2>
@@ -174,71 +175,118 @@
         <div id="microchip-resultado" class="alert mt-3 mb-0 d-none" role="status"></div>
       </div>
     </div>
+
+    <!-- Paso 6: Inscribir animal comunitario (HU-05) -->
+    <div class="card shadow-sm mt-4 border-primary">
+      <div class="card-body">
+        <h2 class="h5 mb-1">6. Inscribir animal comunitario (HU-05)</h2>
+        <p class="text-muted small mb-3">Exclusivo perfil funcionario. Requiere RUT de responsable adulto sin prohibición de tenencia (RN-04 / RN-05).</p>
+
+        <form id="form-comunitario" class="row g-3" autocomplete="off">
+          <div class="col-12">
+            <label for="comunitario-responsable" class="form-label">RUT del responsable adulto (sin puntos, con guión)</label>
+            <input type="text" id="comunitario-responsable" class="form-control" placeholder="Ej: 13333333-9" autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-nombre" class="form-label">Nombre del animal</label>
+            <input type="text" id="comunitario-nombre" class="form-control" placeholder="Ej: Cachupín" autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-especie" class="form-label">Especie</label>
+            <input type="text" id="comunitario-especie" class="form-control" placeholder="perro, gato..." autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-raza" class="form-label">Raza</label>
+            <input type="text" id="comunitario-raza" class="form-control" placeholder="mestizo" autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-color" class="form-label">Color</label>
+            <input type="text" id="comunitario-color" class="form-control" placeholder="café" autocomplete="off" spellcheck="false" required>
+          </div>
+          <div class="col-12" id="grupo-comunitario-raza-obs">
+            <label for="comunitario-raza-observada" class="form-label">Raza observada (obligatorio si es mestizo)</label>
+            <input type="text" id="comunitario-raza-observada" class="form-control" placeholder="Ej: mestizo mediano" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-sexo" class="form-label">Sexo</label>
+            <select id="comunitario-sexo" class="form-select" required>
+              <option value="">Selecciona...</option>
+              <option value="macho">Macho</option>
+              <option value="hembra">Hembra</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="comunitario-edad" class="form-label">Edad aproximada (años)</label>
+            <input type="number" id="comunitario-edad" class="form-control" min="0" max="40" step="1" placeholder="3" required>
+          </div>
+          <div class="col-12">
+            <button type="submit" id="btn-comunitario" class="btn btn-primary w-100">
+              Inscribir animal comunitario
+            </button>
+          </div>
+        </form>
+
+        <div id="comunitario-resultado" class="alert mt-3 mb-0 d-none" role="status"></div>
+      </div>
+    </div>
+
+    <!-- Paso 7: Registrar defunción (HU-06) -->
+    <div class="card shadow-sm mt-4 mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">
+          7. Registrar defunción de mascota (HU-06)
+        </h2>
+
+        <p class="text-muted">
+          Permite registrar la defunción de un animal.
+          Esta acción bloqueará futuras modificaciones de su ficha.
+        </p>
+
+        <form id="form-defuncion" class="row g-3">
+          <div class="col-md-6">
+            <label for="defuncion-animal-id" class="form-label">
+              ID del animal
+            </label>
+            <input
+              type="text"
+              id="defuncion-animal-id"
+              class="form-control"
+              placeholder="Ej: A-000123"
+              required
+            >
+          </div>
+
+          <div class="col-md-6">
+            <label for="defuncion-fecha" class="form-label">
+              Fecha de defunción
+            </label>
+            <input
+              type="date"
+              id="defuncion-fecha"
+              class="form-control"
+              required
+            >
+          </div>
+
+          <div class="col-12">
+            <button
+              type="submit"
+              id="btn-defuncion"
+              class="btn btn-danger w-100"
+            >
+              Registrar defunción
+            </button>
+          </div>
+        </form>
+
+        <div
+          id="defuncion-resultado"
+          class="alert mt-3 mb-0 d-none"
+          role="status"
+        ></div>
+      </div>
+    </div>
   </div>
-
-  <!-- Paso 6: Registrar defunción (HU-06) -->
-<div class="card shadow-sm mt-4 mb-4">
-  <div class="card-body">
-
-    <h2 class="h5 mb-3">
-      6. Registrar defunción de mascota (HU-06)
-    </h2>
-
-    <p class="text-muted">
-      Permite registrar la defunción de un animal.
-      Esta acción bloqueará futuras modificaciones de su ficha.
-    </p>
-
-    <form id="form-defuncion" class="row g-3">
-
-      <div class="col-md-6">
-        <label for="defuncion-animal-id" class="form-label">
-          ID del animal
-        </label>
-
-        <input
-          type="text"
-          id="defuncion-animal-id"
-          class="form-control"
-          placeholder="Ej: A-000123"
-          required
-        >
-      </div>
-
-      <div class="col-md-6">
-        <label for="defuncion-fecha" class="form-label">
-          Fecha de defunción
-        </label>
-
-        <input
-          type="date"
-          id="defuncion-fecha"
-          class="form-control"
-          required
-        >
-      </div>
-
-      <div class="col-12">
-        <button
-          type="submit"
-          id="btn-defuncion"
-          class="btn btn-danger w-100"
-        >
-          Registrar defunción
-        </button>
-      </div>
-
-    </form>
-
-    <div
-      id="defuncion-resultado"
-      class="alert mt-3 mb-0 d-none"
-      role="status"
-    ></div>
-
-  </div>
-</div>
-
 
   <script>
     let tokenActual = null;
@@ -254,7 +302,6 @@
     const btnRegistrar = document.getElementById("btn-registrar");
     const tutorRutInput = document.getElementById("tutor-rut");
     const tutorResultado = document.getElementById("tutor-resultado");
-
 
     const formAnimal = document.getElementById("form-animal");
     const btnAnimal = document.getElementById("btn-animal");
@@ -304,13 +351,13 @@
         }
 
         tokenActual = data.token;
-        const u = data.usuario || {};
+        const u = data.usuario || data;
         perfilActual = u.perfil || null;
         configurarFormularioAnimal();
         mostrarAlerta(
           sesionInfo,
           "success",
-          `Sesión activa: ${u.nombre || rut} (${u.perfil || "usuario"}) — RUT ${u.rut || rut}`
+          `Sesión activa: ${u.nombre || rut} (${perfilActual || "usuario"}) — RUT ${u.rut || rut}`
         );
 
         formLogin.classList.add("d-none");
@@ -332,6 +379,8 @@
       formLogin.reset();
       formTutor.reset();
       formAnimal.reset();
+      document.getElementById("form-comunitario").reset();
+      document.getElementById("comunitario-resultado").classList.add("d-none");
       animalResultado.classList.add("d-none");
       btnAnimal.disabled = true;
       formLogin.classList.remove("d-none");
@@ -349,17 +398,7 @@
     formTutor.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!tokenActual) {
-        consultaMeta.className = "alert alert-warning mt-3 mb-2 py-2";
-        consultaHttpCode.textContent = "401";
-        consultaTiempo.textContent = "-";
-        consultaFicha.classList.add("d-none");
-        consultaJson.classList.remove("d-none");
-        consultaJson.textContent = JSON.stringify({
-          error: {
-            codigo: "TOKEN_REQUERIDO",
-            mensaje: "Debes iniciar sesión para consultar mascotas (RN-05).",
-          }
-        }, null, 2);
+        mostrarAlerta(tutorResultado, "warning", "Primero debes iniciar sesión.");
         return;
       }
 
@@ -579,127 +618,171 @@
       }
     });
 
-// ---------- HU-06: Registrar defunción ----------
-document.getElementById("form-defuncion").addEventListener("submit", async (e) => {
+// ---------- HU-05: Inscribir animal comunitario ----------
+    document.getElementById("form-comunitario").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const resultado = document.getElementById("comunitario-resultado");
+      const boton = document.getElementById("btn-comunitario");
 
-    e.preventDefault();
+      if (!tokenActual) {
+        mostrarAlerta(resultado, "danger", "[401] TOKEN_REQUERIDO: Debes iniciar sesión como funcionario.");
+        return;
+      }
 
-    const resultado = document.getElementById("defuncion-resultado");
-    const boton = document.getElementById("btn-defuncion");
+      boton.disabled = true;
+      boton.textContent = "Inscribiendo animal comunitario...";
 
-    // 1. Comprobar sesión
-    if (!tokenActual) {
+      const razaVal = document.getElementById("comunitario-raza").value.trim();
+      const payload = {
+        responsableRut: document.getElementById("comunitario-responsable").value.trim(),
+        nombre: document.getElementById("comunitario-nombre").value.trim(),
+        especie: document.getElementById("comunitario-especie").value.trim(),
+        raza: razaVal,
+        color: document.getElementById("comunitario-color").value.trim(),
+        sexo: document.getElementById("comunitario-sexo").value,
+        edadAproximada: parseInt(document.getElementById("comunitario-edad").value, 10)
+      };
+
+      const razaObsVal = document.getElementById("comunitario-raza-observada").value.trim();
+      if (razaObsVal) {
+        payload.razaObservada = razaObsVal;
+      }
+
+      try {
+        const resp = await fetch("/api/registro/animales/comunitarios", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${tokenActual}`
+          },
+          body: JSON.stringify(payload)
+        });
+        const rawText = await resp.text();
+        let data = {};
+        try { data = JSON.parse(rawText); } catch (_) {}
+
+        if (!resp.ok) {
+          const msg = data.error
+            ? `[${resp.status}] ${data.error.codigo}: ${data.error.mensaje}`
+            : `[${resp.status}] ${rawText || "Error en el servidor"}`;
+          mostrarAlerta(resultado, "danger", msg);
+          return;
+        }
+
+        const animal = data.animal || data;
         mostrarAlerta(
-            resultado,
-            "danger",
-            "Debes iniciar sesión para registrar una defunción."
+          resultado,
+          "success",
+          `[${resp.status}] Animal comunitario inscrito: ${animal.animalId || data.animalId || "OK"} · ${animal.nombre || payload.nombre} (${animal.especie || payload.especie}, ${animal.raza || payload.raza}) · Responsable RUT: ${animal.responsableRut || payload.responsableRut} · Comunitario: true`
+        );
+        e.currentTarget.reset();
+      } catch (err) {
+        mostrarAlerta(resultado, "danger", `Error de red: ${err.message}`);
+      } finally {
+        boton.disabled = false;
+        boton.textContent = "Inscribir animal comunitario";
+      }
+    });
+    
+    // ---------- HU-06: Registrar defunción ----------
+    document.getElementById("form-defuncion").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const resultado = document.getElementById("defuncion-resultado");
+      const boton = document.getElementById("btn-defuncion");
+
+      if (!tokenActual) {
+        mostrarAlerta(
+          resultado,
+          "danger",
+          "Debes iniciar sesión para registrar una defunción."
         );
         return;
-    }
+      }
 
-    // 2. Obtener perfil autorizado
-    const perfilesAutorizados = [
+      const perfilesAutorizados = [
         "veterinario",
         "funcionario",
         "jefatura",
         "admin"
-    ];
+      ];
 
-    if (!perfilesAutorizados.includes(
+      if (!perfilesAutorizados.includes(
         String(perfilActual || "").toLowerCase()
-    )) {
+      )) {
         mostrarAlerta(
-            resultado,
-            "danger",
-            "Tu perfil no está autorizado para realizar esta acción."
+          resultado,
+          "danger",
+          "Tu perfil no está autorizado para realizar esta acción."
         );
         return;
-    }
+      }
 
-    // 3. Obtener datos del formulario
-    const animalId = document.getElementById(
-        "defuncion-animal-id"
-    ).value.trim();
+      const animalId = document.getElementById("defuncion-animal-id").value.trim();
+      const fechaDefuncion = document.getElementById("defuncion-fecha").value;
 
-    const fechaDefuncion = document.getElementById(
-        "defuncion-fecha"
-    ).value;
-
-    if (!animalId || !fechaDefuncion) {
+      if (!animalId || !fechaDefuncion) {
         mostrarAlerta(
-            resultado,
-            "warning",
-            "Debes ingresar el ID del animal y la fecha de defunción."
+          resultado,
+          "warning",
+          "Debes ingresar el ID del animal y la fecha de defunción."
         );
         return;
-    }
+      }
 
-    // 4. Confirmar operación
-    const confirmar = confirm(
+      const confirmar = confirm(
         `¿Estás seguro de registrar la defunción del animal ${animalId}?\n\nEsta acción bloqueará futuras modificaciones de su ficha.`
-    );
+      );
 
-    if (!confirmar) return;
+      if (!confirmar) return;
 
-    boton.disabled = true;
-    boton.textContent = "Registrando defunción...";
+      boton.disabled = true;
+      boton.textContent = "Registrando defunción...";
 
-    try {
-
-        // 5. Enviar petición PATCH al backend
+      try {
         const respuesta = await fetch(
-            `/api/registro/animales/${encodeURIComponent(animalId)}/defuncion`,
-            {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${tokenActual}`
-                },
-                body: JSON.stringify({
-                    fechaDefuncion: fechaDefuncion
-                })
-            }
+          `/api/registro/animales/${encodeURIComponent(animalId)}/defuncion`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${tokenActual}`
+            },
+            body: JSON.stringify({
+              fechaDefuncion: fechaDefuncion
+            })
+          }
         );
 
         const datos = await respuesta.json();
 
-        // 6. Mostrar resultado
         if (!respuesta.ok) {
+          const mensaje = datos.error
+            ? `[${respuesta.status}] ${datos.error.codigo}: ${datos.error.mensaje}`
+            : `Error ${respuesta.status}`;
 
-            const mensaje = datos.error
-                ? `[${respuesta.status}] ${datos.error.codigo}: ${datos.error.mensaje}`
-                : `Error ${respuesta.status}`;
-
-            mostrarAlerta(resultado, "danger", mensaje);
-            return;
+          mostrarAlerta(resultado, "danger", mensaje);
+          return;
         }
 
         mostrarAlerta(
-            resultado,
-            "success",
-            `¡Defunción registrada correctamente! Animal: ${datos.animalId} | Nombre: ${datos.nombre || "-"} | Estado: ${datos.estado} | Fecha de defunción: ${datos.fechaDefuncion}. La ficha ya no admite modificaciones.`
+          resultado,
+          "success",
+          `¡Defunción registrada correctamente! Animal: ${datos.animalId} | Nombre: ${datos.nombre || "-"} | Estado: ${datos.estado} | Fecha de defunción: ${datos.fechaDefuncion}. La ficha ya no admite modificaciones.`
         );
 
-        // Limpiar formulario
         e.currentTarget.reset();
-
-    } catch (error) {
-
+      } catch (error) {
         mostrarAlerta(
-            resultado,
-            "danger",
-            "No se pudo conectar con el servidor."
+          resultado,
+          "danger",
+          "No se pudo conectar con el servidor."
         );
-
-    } finally {
-
+      } finally {
         boton.disabled = false;
         boton.textContent = "Registrar defunción";
-
-    }
-
-});
-
+      }
+    });
   </script>
 </body>
 </html>
